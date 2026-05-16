@@ -11,9 +11,9 @@ init_db()
 
 DB_PATH = "licenses.db"
 
-TELEGRAM_BOT_TOKEN = os.getenv("8670862501:AAGqMpSIlhm_OF8eIgxtetFxphPXhYpnIrk", "")
-TELEGRAM_CHAT_ID = os.getenv("1092718145", "")
-ADMIN_KEY = os.getenv("15042077", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 
 
 def notify_telegram(text):

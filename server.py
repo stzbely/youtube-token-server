@@ -8,8 +8,8 @@ from database import init_db, get_token, bind_hwid
 app = Flask(__name__)
 init_db()
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_BOT_TOKEN = os.getenv("8670862501:AAGqMpSIlhm_OF8eIgxtetFxphPXhYpnIrk", "")
+TELEGRAM_CHAT_ID = os.getenv("1092718145", "")
 
 
 def notify_telegram(text):

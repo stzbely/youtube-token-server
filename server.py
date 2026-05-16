@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import requests
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -8,8 +9,11 @@ from database import init_db, get_token, bind_hwid
 app = Flask(__name__)
 init_db()
 
+DB_PATH = "licenses.db"
+
 TELEGRAM_BOT_TOKEN = os.getenv("8670862501:AAGqMpSIlhm_OF8eIgxtetFxphPXhYpnIrk", "")
 TELEGRAM_CHAT_ID = os.getenv("1092718145", "")
+ADMIN_KEY = os.getenv("15042077", "")
 
 
 def notify_telegram(text):
@@ -55,14 +59,22 @@ def check_token():
     row = get_token(token)
 
     if not row:
-        notify_telegram(f"❌ Неизвестный токен\nToken: <code>{token}</code>\nHWID: <code>{hwid}</code>")
+        notify_telegram(
+            f"❌ Неизвестный токен\n"
+            f"Token: <code>{token}</code>\n"
+            f"HWID: <code>{hwid}</code>"
+        )
         return jsonify({
             "ok": False,
             "reason": "Токен не найден"
         })
 
     if not row["active"]:
-        notify_telegram(f"⛔ Отключённый токен пытался войти\nUser: {row['user']}\nToken: <code>{token}</code>")
+        notify_telegram(
+            f"⛔ Отключённый токен пытался войти\n"
+            f"User: {row['user']}\n"
+            f"Token: <code>{token}</code>"
+        )
         return jsonify({
             "ok": False,
             "reason": "Токен отключён"
@@ -110,6 +122,86 @@ def check_token():
         "expires": row["expires"],
         "hwid": hwid or saved_hwid,
         "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+
+@app.route("/add-token", methods=["POST"])
+def add_token():
+    data = request.json or {}
+
+    admin_key = data.get("admin_key", "").strip()
+    token = data.get("token", "").strip()
+    user = data.get("user", "").strip()
+    expires = data.get("expires", "").strip()
+
+    if not ADMIN_KEY:
+        return jsonify({
+            "ok": False,
+            "reason": "ADMIN_KEY не настроен на сервере"
+        }), 500
+
+    if admin_key != ADMIN_KEY:
+        return jsonify({
+            "ok": False,
+            "reason": "Нет доступа"
+        }), 403
+
+    if not token or not user or not expires:
+        return jsonify({
+            "ok": False,
+            "reason": "Не все поля заполнены"
+        }), 400
+
+    try:
+        datetime.strptime(expires, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({
+            "ok": False,
+            "reason": "Дата должна быть в формате YYYY-MM-DD"
+        }), 400
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        INSERT INTO tokens (
+            token,
+            user,
+            active,
+            expires,
+            hwid,
+            created_at
+        )
+        VALUES (?, ?, 1, ?, '', ?)
+        """, (
+            token,
+            user,
+            expires,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+
+        conn.commit()
+        conn.close()
+
+    except sqlite3.IntegrityError:
+        return jsonify({
+            "ok": False,
+            "reason": "Такой токен уже существует"
+        }), 409
+
+    notify_telegram(
+        f"🆕 Создан новый токен\n"
+        f"User: {user}\n"
+        f"Token: <code>{token}</code>\n"
+        f"До: {expires}"
+    )
+
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "user": user,
+        "expires": expires
     })
 
 

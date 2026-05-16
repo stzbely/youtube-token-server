@@ -6,10 +6,13 @@ from flask import Flask, request, jsonify
 
 from database import init_db, get_token, bind_hwid
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "licenses.db")
+
 app = Flask(__name__)
 init_db()
 
-DB_PATH = "licenses.db"
+print("DB PATH:", DB_PATH)
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -38,7 +41,8 @@ def notify_telegram(text):
 def home():
     return jsonify({
         "ok": True,
-        "message": "Token server works"
+        "message": "Token server works",
+        "db_path": DB_PATH
     })
 
 
@@ -51,10 +55,7 @@ def check_token():
     app_version = data.get("version", "").strip()
 
     if not token:
-        return jsonify({
-            "ok": False,
-            "reason": "Токен не указан"
-        })
+        return jsonify({"ok": False, "reason": "Токен не указан"})
 
     row = get_token(token)
 
@@ -64,29 +65,15 @@ def check_token():
             f"Token: <code>{token}</code>\n"
             f"HWID: <code>{hwid}</code>"
         )
-        return jsonify({
-            "ok": False,
-            "reason": "Токен не найден"
-        })
+        return jsonify({"ok": False, "reason": "Токен не найден"})
 
     if not row["active"]:
-        notify_telegram(
-            f"⛔ Отключённый токен пытался войти\n"
-            f"User: {row['user']}\n"
-            f"Token: <code>{token}</code>"
-        )
-        return jsonify({
-            "ok": False,
-            "reason": "Токен отключён"
-        })
+        return jsonify({"ok": False, "reason": "Токен отключён"})
 
     expires = datetime.strptime(row["expires"], "%Y-%m-%d")
 
     if datetime.now() > expires:
-        return jsonify({
-            "ok": False,
-            "reason": "Подписка истекла"
-        })
+        return jsonify({"ok": False, "reason": "Подписка истекла"})
 
     saved_hwid = row.get("hwid") or ""
 
@@ -103,14 +90,6 @@ def check_token():
             )
 
         elif saved_hwid != hwid:
-            notify_telegram(
-                f"🚫 Попытка входа с другого ПК\n"
-                f"User: {row['user']}\n"
-                f"Token: <code>{token}</code>\n"
-                f"Saved HWID: <code>{saved_hwid}</code>\n"
-                f"New HWID: <code>{hwid}</code>"
-            )
-
             return jsonify({
                 "ok": False,
                 "reason": "Токен уже активирован на другом устройстве"
@@ -135,45 +114,33 @@ def add_token():
     expires = data.get("expires", "").strip()
 
     if not ADMIN_KEY:
-        return jsonify({
-            "ok": False,
-            "reason": "ADMIN_KEY не настроен на сервере"
-        }), 500
+        return jsonify({"ok": False, "reason": "ADMIN_KEY не настроен"}), 500
 
     if admin_key != ADMIN_KEY:
-        return jsonify({
-            "ok": False,
-            "reason": "Нет доступа"
-        }), 403
+        return jsonify({"ok": False, "reason": "Нет доступа"}), 403
 
     if not token or not user or not expires:
-        return jsonify({
-            "ok": False,
-            "reason": "Не все поля заполнены"
-        }), 400
+        return jsonify({"ok": False, "reason": "Не все поля заполнены"}), 400
 
     try:
         datetime.strptime(expires, "%Y-%m-%d")
     except ValueError:
-        return jsonify({
-            "ok": False,
-            "reason": "Дата должна быть в формате YYYY-MM-DD"
-        }), 400
+        return jsonify({"ok": False, "reason": "Дата должна быть YYYY-MM-DD"}), 400
 
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute("""
-        INSERT INTO tokens (
-            token,
-            user,
-            active,
-            expires,
-            hwid,
-            created_at
-        )
-        VALUES (?, ?, 1, ?, '', ?)
+            INSERT INTO tokens (
+                token,
+                user,
+                active,
+                expires,
+                hwid,
+                created_at
+            )
+            VALUES (?, ?, 1, ?, '', ?)
         """, (
             token,
             user,
@@ -185,10 +152,10 @@ def add_token():
         conn.close()
 
     except sqlite3.IntegrityError:
-        return jsonify({
-            "ok": False,
-            "reason": "Такой токен уже существует"
-        }), 409
+        return jsonify({"ok": False, "reason": "Такой токен уже существует"}), 409
+
+    except Exception as e:
+        return jsonify({"ok": False, "reason": str(e)}), 500
 
     notify_telegram(
         f"🆕 Создан новый токен\n"

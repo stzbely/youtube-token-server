@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "version": "9.9.6",
+  "version": "1.0.2",
   "download_url": "https://github.com/stzbely/youtube-token-server/releases/download/v1.0.2/app.exe",
   "notes": "Добавлено автообновление и исправлены ошибки."
 }

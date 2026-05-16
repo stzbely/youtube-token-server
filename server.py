@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 TOKENS = {
     "STZBELY-2026-PRO": {
-        "active": True,
+        "active": False,
         "expires": "2026-12-31",
         "user": "client_1"
     },
